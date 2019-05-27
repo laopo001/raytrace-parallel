@@ -38,7 +38,7 @@ impl Sphere {
 		}
 	}
 	pub fn intersect(&self, ray: &Ray) -> f32 {
-//		let op = self.position.clone().sub(&ray.origin);
+		0.0
 	}
 }
 

@@ -292,7 +292,7 @@ name = "raytrace-parallel"
 version = "0.1.0"
 dependencies = [
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasm-math 0.1.0 (git+https://github.com/laopo001/wasm-math.git)",
+ "wasm-math 0.1.0",
 ]
 
 [[package]]
@@ -485,7 +485,6 @@ dependencies = [
 [[package]]
 name = "wasm-math"
 version = "0.1.0"
-source = "git+https://github.com/laopo001/wasm-math.git#3a6c083678cbac534af4f96ec085100c860725b8"
 dependencies = [
  "cfg-if 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -610,7 +609,6 @@ dependencies = [
 "checksum wasm-bindgen-macro-support 0.2.45 (registry+https://github.com/rust-lang/crates.io-index)" = "2d4246f3bc73223bbb846f4f2430a60725826a96c9389adf715ed1d5af46dec6"
 "checksum wasm-bindgen-shared 0.2.45 (registry+https://github.com/rust-lang/crates.io-index)" = "c08381e07e7a79e5e229ad7c60d15833d19033542cc5dd91d085df59d235f4a6"
 "checksum wasm-bindgen-webidl 0.2.45 (registry+https://github.com/rust-lang/crates.io-index)" = "1f42ff7adb8102bf5ad8adbc45b1635c520c8175f9fdf6eb2c54479d485d435a"
-"checksum wasm-math 0.1.0 (git+https://github.com/laopo001/wasm-math.git)" = "<none>"
 "checksum web-sys 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "540b8259eb242ff3a566fa0140bda03a4ece4e5c226e1284b5c95dddcd4341f6"
 "checksum weedle 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bcc44aa200daee8b1f3a004beaf16554369746f1b4486f0cf93b0caf8a3c2d1e"
 "checksum winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "f10e386af2b13e47c89e7236a7a14a086791a2b88ebad6df9bf42040195cf770"

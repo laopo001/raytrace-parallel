@@ -1,0 +1,3 @@
+[submodule "wasm-math"]
+	path = wasm-math
+	url = git@github.com:laopo001/wasm-math.git
