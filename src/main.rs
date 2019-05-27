@@ -1,6 +1,12 @@
+#[macro_use]
+extern crate lazy_static;
 use std::f32::consts::PI;
 use wasm_math::vec3::Vec3;
 use rand::Rng;
+
+lazy_static! {
+    static ref NUMBER: u32 = 123;
+}
 
 struct Ray {
 	pub origin: Vec3,
@@ -38,7 +44,26 @@ impl Sphere {
 		}
 	}
 	pub fn intersect(&self, ray: &Ray) -> f32 {
-		0.0
+		let mut op = Vec3::default();
+		op.sub2(&self.position, &ray.origin);
+		let eps: f32 = 0.0001;
+		let b = op.dot(&ray.direct);
+		let mut det = b * b + self.radius * self.radius - op.dot(&op);
+		if det < 0.0 {
+			return 0.0;
+		} else {
+			det = det.sqrt();
+		}
+		let mut t = b - det;
+		if t > eps {
+			return  t;
+		}
+		t = b + det;
+		if t > eps {
+			t
+		} else {
+			0.0
+		}
 	}
 }
 

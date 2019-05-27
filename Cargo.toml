@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 wasm-math = { path="wasm-math" }
 rand = "*"
+lazy_static="*"
