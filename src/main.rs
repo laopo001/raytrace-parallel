@@ -79,7 +79,50 @@ impl Sphere {
 	}
 }
 
+fn intersect(ray: &Ray, distance: &mut f32, id: &mut usize) -> bool {
+	let size = spheres.len();
+	*distance = 1e20;
+	let inf = *distance;
+	for i in 0..size {
+		let d = spheres[i].intersect(ray);
+		if d != 0.0 && d < *distance {
+			*distance = d;
+			*id = i;
+		}
+	}
+	return *distance < inf;
+}
+
+fn radiance(ray: &Ray, depth: i32) {
+	let mut t = 0_f32;
+	let mut id = 0;
+	if !intersect(r, &mut t, &mut id) {
+		return Vec3::default();
+	}
+	let obj = spheres[id];
+	let mut x =  Vec3::default();
+	let mut d = ray.direct;
+	d.scale(t);
+	x.add2(&ray.origin,&d);
+}
+
 fn main() {
 	let mut rng = rand::thread_rng();
+	let width: f32 = 256.0;
+	let height: f32 = 256.0;
+	let samples: f32 = 25.0;
+	let mut direct = Vec3::new(0.0, -0.042612, -1.0);
+	direct.normalize();
+	let camera = Ray::new(
+		Vec3::new(50.0, 52.0, 295.6),
+		direct,
+	);
+	let cx = Vec3::new(width * 0.5135 / height, 0.0, 0.0);
+	let mut cy = Vec3::default();
+	cy.mul2(&cx, &camera.direct);
+	cy.normalize();
+	cy.scale(0.5135);
+	let content = Vec3::new(width * height, 0.0, 0.0);
+
 	println!("Hello, world!,{}", rng.gen::<f32>());
 }
