@@ -103,7 +103,7 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 	if !intersect(ray, &mut t, &mut id) {
 		return Vec3::default();
 	}
-	let obj = &spheres[id];
+	let obj: &Sphere = &spheres[id];
 	let x = ray.origin + ray.direct.scale(t);
 	let n = (x - obj.center).normalize();
 	let nl = if n.dot(&ray.direct) < 0.0 {
@@ -118,27 +118,118 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 			p = *item;
 		}
 	}
-//	nl=n.dot(r.d)<0?n:n*-1
-
-	Vec3::default()
+	if depth > 100 {
+		return obj.emission;
+	}
+	match obj.material {
+		Material::Diffuse => {
+			let r1 = 2.0 * PI * erand48();
+			let r2 = erand48();
+			let r2s = 2.0_f32.sqrt();
+			let w = nl;
+			let u = ((if w.x.abs() > 0.1 {
+				Vec3::new(0.0, 1.0, 0.0)
+			} else {
+				Vec3::new(0.0, 0.0, 1.0)
+			}) % w).normalize();
+			let v = w % u;
+//			Vec d=(u*Math.Cos(r1)*r2s+v*Math.Sin(r1)*r2s+w*Math.Sqrt(1-r2)).norm();
+			let d = (u.scale(r1.cos() * r2s) +
+				v.scale(r1.sin() * r2s) +
+				w.scale((1.0 - r2).sqrt())).normalize();
+			return obj.emission + f * radiance(&Ray::new(x, d), depth);
+		}
+		Material::Specular => {
+			return obj.emission + f * radiance(&Ray::new(x, ray.direct - n.scale(2.0 * n.dot(&ray.direct)),
+			), depth);
+		}
+		_ => {
+			let reflRay = Ray::new(x, ray.direct - n.scale(2_f32 * n.dot(&ray.direct)));
+			let into = n.dot(&nl) > 0_f32;
+			let nc = 1_f32;
+			let nt = 1.5_f32;
+			let nnt = if into { nc / nt } else { nt / nc };
+			let ddn = ray.direct.dot(&nl);
+			let cos2t = 1_f32 - nnt * nnt * (1_f32 - ddn - ddn);
+			if cos2t < 0_f32 {
+				return obj.emission + f * radiance(&reflRay, depth);
+			}
+			let tdir = ray.direct.scale(nnt) - n.scale((if into { 1.0 } else { -1.0 }) * (ddn * nnt + cos2t.sqrt())).normalize();
+			let a = nt - nc;
+			let b = nt + nc;
+			let R0 = a * a / (b * b);
+			let c = 1.0 - (if into { -ddn } else { tdir.dot(&n) });
+			let Re = R0 + (1.0 - R0) * c * c * c * c * c;
+			let Tr = 1.0 - Re;
+			let P = 0.25 + 0.5 * Re;
+			let RP = Re / P;
+			let TP = Tr / (1.0 - p);
+			return obj.emission + f * (if depth > 2 {
+				if erand48() < P {
+					radiance(&reflRay, depth).scale(RP)
+				} else {
+					radiance(&Ray::new(x, tdir), depth).scale(TP)
+				}
+			} else {
+				radiance(&reflRay, depth).scale(Re) + radiance(&Ray::new(x, tdir), depth).scale(Tr)
+			});
+		}
+	}
 }
+
+fn clamp(x: f32) -> f32 {
+	if x < 0.0 {
+		0.0
+	} else if x > 1.0 {
+		1.0
+	} else {
+		x
+	}
+}
+
+fn toInt(x: f32) -> i32 { return (clamp(x).powf(1.0 / 2.2) * 255.0 + 0.5) as i32; }
 
 fn main() {
 	let mut rng = rand::thread_rng();
-	let width: f32 = 256.0;
-	let height: f32 = 256.0;
-	let samples: f32 = 25.0;
+	let width = 256;
+	let height = 256;
+	let samples = 25;
 	let mut direct = Vec3::new(0.0, -0.042612, -1.0);
 	direct.normalize();
 	let camera = Ray::new(
 		Vec3::new(50.0, 52.0, 295.6),
 		direct,
 	);
-	let cx = Vec3::new(width * 0.5135 / height, 0.0, 0.0);
-	let mut cy = cx * camera.direct;
-	cy.normalize();
-	cy.scale(0.5135);
-	let content = Vec3::new(width * height, 0.0, 0.0);
+	let mut c: Vec<Vec3> = vec![Vec3::default(); width * height];
+	let cx = Vec3::new(width as f32 * 0.5135 / height as f32, 0.0, 0.0);
+	let mut cy = (cx * camera.direct).normalize().scale(0.5135);
+
+	for y in 0..height {
+		for x in 0..width {
+			for sy in 0..2 {
+				for sx in 0..2 {
+					let i = (height - y - 1) * width + x;
+					let r = Vec3::default();
+					for s in 0..samples {
+						let r1 = 2.0 * erand48();
+						let dx = if r1 < 1.0 { r1.sqrt() - 1.0 } else { 1.0 - (2.0 - r1).sqrt() };
+						let r2 = 2.0 * erand48();
+						let dy = if r1 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
+						let d = cx.scale(((sx as f32 + 0.5 + dx) / 2.0 + x as f32) / width as f32 - 0.5) +
+							cy.scale(((sy as f32 + 0.5 + dy) / 2.0 + y as f32) / height as f32 - 0.5) + camera.direct;
+						c[i] = c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
+					}
+				}
+			}
+		}
+	}
+
+	let mut res = "".to_string();
+	for i in 0..(width * height) {
+		res += &format!("{} {} {}", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+	}
+	std::fs::write("image.ppm", res);
+
 
 	println!("Hello, world!,{}", rng.gen::<f32>());
 }
