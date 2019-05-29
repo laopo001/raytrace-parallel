@@ -209,7 +209,7 @@ fn main() {
 			for sy in 0..2 {
 				for sx in 0..2 {
 					let i = (height - y - 1) * width + x;
-					let r = Vec3::default();
+					let mut r = Vec3::default();
 					for s in 0..samples {
 						let r1 = 2.0 * erand48();
 						let dx = if r1 < 1.0 { r1.sqrt() - 1.0 } else { 1.0 - (2.0 - r1).sqrt() };
@@ -217,8 +217,10 @@ fn main() {
 						let dy = if r1 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
 						let d = cx.scale(((sx as f32 + 0.5 + dx) / 2.0 + x as f32) / width as f32 - 0.5) +
 							cy.scale(((sy as f32 + 0.5 + dy) / 2.0 + y as f32) / height as f32 - 0.5) + camera.direct;
-						c[i] = c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
+						r = r + radiance(&Ray::new(camera.origin + d.scale(140.0), d.normalize()), 0)
+							.scale(1.0 / samples as f32);
 					}
+					c[i] = c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
 				}
 			}
 		}
