@@ -20,6 +20,11 @@ lazy_static! {
     ];
 }
 
+fn erand48() -> f32 {
+	let mut rng = rand::thread_rng();
+	rng.gen::<f32>()
+}
+
 struct Ray {
 	pub origin: Vec3,
 	pub direct: Vec3,
@@ -56,8 +61,7 @@ impl Sphere {
 		}
 	}
 	pub fn intersect(&self, ray: &Ray) -> f32 {
-		let mut op = Vec3::default();
-		op.sub2(&self.center, &ray.origin);
+		let mut op = self.center - ray.origin;
 		let eps: f32 = 0.0001;
 		let b = op.dot(&ray.direct);
 		let mut det = b * b + self.radius * self.radius - op.dot(&op);
@@ -93,17 +97,30 @@ fn intersect(ray: &Ray, distance: &mut f32, id: &mut usize) -> bool {
 	return *distance < inf;
 }
 
-fn radiance(ray: &Ray, depth: i32) {
+fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 	let mut t = 0_f32;
 	let mut id = 0;
-	if !intersect(r, &mut t, &mut id) {
+	if !intersect(ray, &mut t, &mut id) {
 		return Vec3::default();
 	}
-	let obj = spheres[id];
-	let mut x =  Vec3::default();
-	let mut d = ray.direct;
-	d.scale(t);
-	x.add2(&ray.origin,&d);
+	let obj = &spheres[id];
+	let x = ray.origin + ray.direct.scale(t);
+	let n = (x - obj.center).normalize();
+	let nl = if n.dot(&ray.direct) < 0.0 {
+		n
+	} else {
+		n.scale(-1.0)
+	};
+	let f: Vec3 = obj.color;
+	let mut p = std::f32::MIN;
+	for item in f.data().iter() {
+		if item > &p {
+			p = *item;
+		}
+	}
+//	nl=n.dot(r.d)<0?n:n*-1
+
+	Vec3::default()
 }
 
 fn main() {
@@ -118,8 +135,7 @@ fn main() {
 		direct,
 	);
 	let cx = Vec3::new(width * 0.5135 / height, 0.0, 0.0);
-	let mut cy = Vec3::default();
-	cy.mul2(&cx, &camera.direct);
+	let mut cy = cx * camera.direct;
 	cy.normalize();
 	cy.scale(0.5135);
 	let content = Vec3::new(width * height, 0.0, 0.0);
