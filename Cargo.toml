@@ -10,3 +10,4 @@ edition = "2018"
 wasm-math = { path="wasm-math" }
 rand = "*"
 lazy_static="*"
+nameof = "1.1"

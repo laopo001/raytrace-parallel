@@ -4,6 +4,10 @@ extern crate lazy_static;
 use std::f32::consts::PI;
 use wasm_math::vec3::Vec3;
 use rand::Rng;
+use rand::prelude::ThreadRng;
+
+#[macro_use]
+extern crate nameof;
 
 lazy_static! {
     static ref NUMBER: u32 = 123;
@@ -22,7 +26,9 @@ lazy_static! {
 
 fn erand48() -> f32 {
 	let mut rng = rand::thread_rng();
-	rng.gen::<f32>()
+	unsafe {
+		rng.gen::<f32>()
+	}
 }
 
 struct Ray {
@@ -62,7 +68,7 @@ impl Sphere {
 	}
 	pub fn intersect(&self, ray: &Ray) -> f32 {
 		let mut op = self.center - ray.origin;
-		let eps: f32 = 0.0001;
+		let eps: f32 = 1e-4;
 		let b = op.dot(&ray.direct);
 		let mut det = b * b + self.radius * self.radius - op.dot(&op);
 		if det < 0.0 {
@@ -97,7 +103,7 @@ fn intersect(ray: &Ray, distance: &mut f32, id: &mut usize) -> bool {
 	return *distance < inf;
 }
 
-fn radiance(ray: &Ray, depth: i32) -> Vec3 {
+fn radiance(ray: &Ray, mut depth: i32) -> Vec3 {
 	let mut t = 0_f32;
 	let mut id = 0;
 	if !intersect(ray, &mut t, &mut id) {
@@ -111,13 +117,21 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 	} else {
 		n.scale(-1.0)
 	};
-	let f: Vec3 = obj.color;
+	let mut f: Vec3 = obj.color;
 	let mut p = std::f32::MIN;
 	for item in f.data().iter() {
 		if item > &p {
 			p = *item;
 		}
 	}
+	if depth > 5 {
+		if erand48() < p {
+			f = f.scale(1.0 / p);
+		} else {
+			return obj.emission;
+		}
+	}
+	depth += 1;
 	if depth > 100 {
 		return obj.emission;
 	}
@@ -125,12 +139,12 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 		Material::Diffuse => {
 			let r1 = 2.0 * PI * erand48();
 			let r2 = erand48();
-			let r2s = 2.0_f32.sqrt();
+			let r2s = r2.sqrt();
 			let w = nl;
 			let u = ((if w.x.abs() > 0.1 {
 				Vec3::new(0.0, 1.0, 0.0)
 			} else {
-				Vec3::new(0.0, 0.0, 1.0)
+				Vec3::new(1.0, 0.0, 0.0)
 			}) % w).normalize();
 			let v = w % u;
 //			Vec d=(u*Math.Cos(r1)*r2s+v*Math.Sin(r1)*r2s+w*Math.Sqrt(1-r2)).norm();
@@ -143,7 +157,7 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 			return obj.emission + f * radiance(&Ray::new(x, ray.direct - n.scale(2.0 * n.dot(&ray.direct)),
 			), depth);
 		}
-		_ => {
+		Material::Refract => {
 			let reflRay = Ray::new(x, ray.direct - n.scale(2_f32 * n.dot(&ray.direct)));
 			let into = n.dot(&nl) > 0_f32;
 			let nc = 1_f32;
@@ -154,7 +168,7 @@ fn radiance(ray: &Ray, depth: i32) -> Vec3 {
 			if cos2t < 0_f32 {
 				return obj.emission + f * radiance(&reflRay, depth);
 			}
-			let tdir = ray.direct.scale(nnt) - n.scale((if into { 1.0 } else { -1.0 }) * (ddn * nnt + cos2t.sqrt())).normalize();
+			let tdir = (ray.direct.scale(nnt) - n.scale((if into { 1.0 } else { -1.0 }) * (ddn * nnt + cos2t.sqrt()))).normalize();
 			let a = nt - nc;
 			let b = nt + nc;
 			let R0 = a * a / (b * b);
@@ -190,15 +204,15 @@ fn clamp(x: f32) -> f32 {
 fn toInt(x: f32) -> i32 { return (clamp(x).powf(1.0 / 2.2) * 255.0 + 0.5) as i32; }
 
 fn main() {
-	let mut rng = rand::thread_rng();
-	let width = 256;
-	let height = 256;
+	let text = "Hello, World!";
+	let mut rng1 = rand::thread_rng();
+	let width = 25;
+	let height = 25;
 	let samples = 25;
-	let mut direct = Vec3::new(0.0, -0.042612, -1.0);
-	direct.normalize();
+
 	let camera = Ray::new(
 		Vec3::new(50.0, 52.0, 295.6),
-		direct,
+		Vec3::new(0.0, -0.042612, -1.0).normalize(),
 	);
 	let mut c: Vec<Vec3> = vec![Vec3::default(); width * height];
 	let cx = Vec3::new(width as f32 * 0.5135 / height as f32, 0.0, 0.0);
@@ -227,11 +241,12 @@ fn main() {
 	}
 
 	let mut res = "".to_string();
+	res += &format!("P3\r\n{} {}\r\n{}\r\n", width, height, 255);
 	for i in 0..(width * height) {
-		res += &format!("{} {} {}", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+		res += &format!("{} {} {}\r\n", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
 	}
 	std::fs::write("image.ppm", res);
 
 
-	println!("Hello, world!,{}", rng.gen::<f32>());
+	println!("Hello, world!,{}", rng1.gen::<f32>());
 }
