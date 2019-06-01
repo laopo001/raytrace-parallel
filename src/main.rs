@@ -18,8 +18,8 @@ lazy_static! {
     	Sphere::new(1e5, Vec3::new(50.,40.8,-1e5 + 170.), Vec3::default(),Vec3::default(),           Material::Diffuse),//Frnt
     	Sphere::new(1e5, Vec3::new(50., 1e5, 81.6),    Vec3::default(),Vec3::new(0.75,0.75,0.75),Material::Diffuse),//Botm
     	Sphere::new(1e5, Vec3::new(50.,-1e5 + 81.6,81.6),Vec3::default(),Vec3::new(0.75,0.75,0.75),Material::Diffuse),//Top
-    	Sphere::new(16.5,Vec3::new(27.,16.5,47.),       Vec3::default(),Vec3::new(1.,1.,1.), Material::Specular),//Mirr
-    	Sphere::new(16.5,Vec3::new(73.,16.5,78.),       Vec3::default(),Vec3::new(1.,1.,1.), Material::Refract),//Glas
+    	Sphere::new(16.5,Vec3::new(27.,16.5,47.),       Vec3::default(),Vec3::new(1.,1.,1.).scale(0.999), Material::Specular),//Mirr
+    	Sphere::new(16.5,Vec3::new(73.,16.5,78.),       Vec3::default(),Vec3::new(1.,1.,1.).scale(0.999), Material::Refract),//Glas
     	Sphere::new(600., Vec3::new(50.,681.6 - 0.27,81.6),Vec3::new(12.,12.,12.),  Vec3::default(), Material::Diffuse) //Lite
     ];
 }
@@ -93,7 +93,7 @@ fn intersect(ray: &Ray, distance: &mut f32, id: &mut usize) -> bool {
 	let size = spheres.len();
 	*distance = 1e20;
 	let inf = *distance;
-	for i in 0..size {
+	for i in (0..size).rev() {
 		let d = spheres[i].intersect(ray);
 		if d != 0.0 && d < *distance {
 			*distance = d;
@@ -124,6 +124,7 @@ fn radiance(ray: &Ray, mut depth: i32) -> Vec3 {
 			p = *item;
 		}
 	}
+	depth += 1;
 	if depth > 5 {
 		if erand48() < p {
 			f = f.scale(1.0 / p);
@@ -131,7 +132,6 @@ fn radiance(ray: &Ray, mut depth: i32) -> Vec3 {
 			return obj.emission;
 		}
 	}
-	depth += 1;
 	if depth > 100 {
 		return obj.emission;
 	}
@@ -205,9 +205,8 @@ fn toInt(x: f32) -> i32 { return (clamp(x).powf(1.0 / 2.2) * 255.0 + 0.5) as i32
 
 fn main() {
 	let text = "Hello, World!";
-	let mut rng1 = rand::thread_rng();
-	let width = 25;
-	let height = 25;
+	let width = 256;
+	let height = 256;
 	let samples = 25;
 
 	let camera = Ray::new(
@@ -216,7 +215,7 @@ fn main() {
 	);
 	let mut c: Vec<Vec3> = vec![Vec3::default(); width * height];
 	let cx = Vec3::new(width as f32 * 0.5135 / height as f32, 0.0, 0.0);
-	let mut cy = (cx * camera.direct).normalize().scale(0.5135);
+	let cy = (cx % camera.direct).normalize().scale(0.5135);
 
 	for y in 0..height {
 		for x in 0..width {
@@ -228,12 +227,13 @@ fn main() {
 						let r1 = 2.0 * erand48();
 						let dx = if r1 < 1.0 { r1.sqrt() - 1.0 } else { 1.0 - (2.0 - r1).sqrt() };
 						let r2 = 2.0 * erand48();
-						let dy = if r1 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
+						let dy = if r2 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
 						let d = cx.scale(((sx as f32 + 0.5 + dx) / 2.0 + x as f32) / width as f32 - 0.5) +
 							cy.scale(((sy as f32 + 0.5 + dy) / 2.0 + y as f32) / height as f32 - 0.5) + camera.direct;
 						r = r + radiance(&Ray::new(camera.origin + d.scale(140.0), d.normalize()), 0)
 							.scale(1.0 / samples as f32);
 					}
+
 					c[i] = c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
 				}
 			}
@@ -248,5 +248,5 @@ fn main() {
 	std::fs::write("image.ppm", res);
 
 
-	println!("Hello, world!,{}", rng1.gen::<f32>());
+	println!("Hello, world!,{}", erand48());
 }
