@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::sync::{Mutex, Arc};
 use std::f32::consts::PI;
 use wasm_math::vec3::Vec3;
 use rand::Rng;
 use rand::prelude::ThreadRng;
+use hello_rust::test::ThreadPool;
 
 #[macro_use]
 extern crate nameof;
@@ -31,6 +33,7 @@ fn erand48() -> f32 {
 	}
 }
 
+#[derive(Copy, Clone)]
 struct Ray {
 	pub origin: Vec3,
 	pub direct: Vec3,
@@ -206,6 +209,7 @@ fn toInt(x: f32) -> i32 { return (clamp(x).powf(1.0 / 2.2) * 255.0 + 0.5) as i32
 fn main() {
 	let t1 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
 	let text = "Hello, World!";
+	let mut rng1 = rand::thread_rng();
 	let width = 256;
 	let height = 256;
 	let samples = 25;
@@ -214,40 +218,45 @@ fn main() {
 		Vec3::new(50.0, 52.0, 295.6),
 		Vec3::new(0.0, -0.042612, -1.0).normalize(),
 	);
-	let mut c: Vec<Vec3> = vec![Vec3::default(); width * height];
 	let cx = Vec3::new(width as f32 * 0.5135 / height as f32, 0.0, 0.0);
 	let cy = (cx % camera.direct).normalize().scale(0.5135);
-
+	let pool = ThreadPool::new(12);
+	let mut c: Vec<Vec3> = vec![Vec3::default(); width * height];
+	let c = Arc::new(Mutex::new(c));
 	for y in 0..height {
 		for x in 0..width {
 			for sy in 0..2 {
 				for sx in 0..2 {
-					let i = (height - y - 1) * width + x;
-					let mut r = Vec3::default();
-					for s in 0..samples {
-						let r1 = 2.0 * erand48();
-						let dx = if r1 < 1.0 { r1.sqrt() - 1.0 } else { 1.0 - (2.0 - r1).sqrt() };
-						let r2 = 2.0 * erand48();
-						let dy = if r2 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
-						let d = cx.scale(((sx as f32 + 0.5 + dx) / 2.0 + x as f32) / width as f32 - 0.5) +
-							cy.scale(((sy as f32 + 0.5 + dy) / 2.0 + y as f32) / height as f32 - 0.5) + camera.direct;
-						r = r + radiance(&Ray::new(camera.origin + d.scale(140.0), d.normalize()), 0)
-							.scale(1.0 / samples as f32);
-					}
-
-					c[i] = c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
+					let c_c = Arc::clone(&c);
+					pool.execute(move || {
+						let i = (height - y - 1) * width + x;
+						let mut r = Vec3::default();
+						for s in 0..samples {
+							let r1 = 2.0 * erand48();
+							let dx = if r1 < 1.0 { r1.sqrt() - 1.0 } else { 1.0 - (2.0 - r1).sqrt() };
+							let r2 = 2.0 * erand48();
+							let dy = if r2 < 1.0 { r2.sqrt() - 1.0 } else { 1.0 - (2.0 - r2).sqrt() };
+							let d = cx.scale(((sx as f32 + 0.5 + dx) / 2.0 + x as f32) / width as f32 - 0.5) +
+								cy.scale(((sy as f32 + 0.5 + dy) / 2.0 + y as f32) / height as f32 - 0.5) + camera.direct;
+							r = r + radiance(&Ray::new(camera.origin + d.scale(140.0), d.normalize()), 0)
+								.scale(1.0 / samples as f32);
+						}
+						let mut c_c = c_c.lock().unwrap();
+						c_c[i] = c_c[i] + Vec3::new(clamp(r.x), clamp(r.y), clamp(r.z)).scale(0.25);
+					});
 				}
 			}
 		}
 	}
 
+	pool.wait();
 	let mut res = "".to_string();
 	res += &format!("P3\r\n{} {}\r\n{}\r\n", width, height, 255);
+	let c = c.lock().unwrap();
 	for i in 0..(width * height) {
 		res += &format!("{} {} {}\r\n", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
 	}
-	std::fs::write("image.ppm", res);
-
+	std::fs::write("image2.ppm", res);
 	let t2 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
 	println!("Hello, world!,{}", t2 - t1);
 }
