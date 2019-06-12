@@ -15,14 +15,22 @@ extern crate nameof;
 trait More<T> {
 	fn default() -> Vector3<T>;
 	fn scale(&self, s: f64) -> Vector3<T>;
+	fn rem2(self, b: Self) -> Self;
 }
 
-impl More<T> for Vector3<f64> {
+impl More<f64> for Vector3<f64> {
 	fn default() -> Vector3<f64> {
 		Vector3::new(0.0, 0.0, 0.0)
 	}
 	fn scale(&self, s: f64) -> Vector3<f64> {
 		Vector3::new(self.x * s, self.y * s, self.z * s)
+	}
+	fn rem2(self, b: Self) -> Self {
+		let mut res = vec3(0.0,0.0,0.0);
+		res.x = self.y * b.z - self.z * b.y;
+		res.y = self.z * b.x - self.x * b.z;
+		res.z = self.x * b.y - self.y * b.x;
+		res
 	}
 }
 
@@ -140,7 +148,7 @@ fn radiance(ray: &Ray, mut depth: i32) -> Vector3<f64> {
 	let obj: &Sphere = &spheres[id];
 	let x = ray.origin + ray.direct.scale(t);
 	let n = (x - obj.center).normalize();
-	let nl = if n.dot(&ray.direct) < 0.0 {
+	let nl = if n.dot(ray.direct) < 0.0 {
 		n
 	} else {
 		n.scale(-1.0)
@@ -152,7 +160,7 @@ fn radiance(ray: &Ray, mut depth: i32) -> Vector3<f64> {
 //			p = *item;
 //		}
 //	}
-	let p =	if f.x > f.y && f.x > f.z {
+	let p = if f.x > f.y && f.x > f.z {
 		f.x
 	} else if f.y > f.z {
 		f.y
@@ -181,48 +189,49 @@ fn radiance(ray: &Ray, mut depth: i32) -> Vector3<f64> {
 				Vector3::<f64>::new(0.0, 1.0, 0.0)
 			} else {
 				Vector3::<f64>::new(1.0, 0.0, 0.0)
-			}) % w).normalize();
-			let v = w % u;
+			}).rem2(w)).normalize();
+			let v = w.rem2(u);
 //			Vec d=(u*Math.Cos(r1)*r2s+v*Math.Sin(r1)*r2s+w*Math.Sqrt(1-r2)).norm();
 			let d = (u.scale(r1.cos() * r2s) +
 				v.scale(r1.sin() * r2s) +
 				w.scale((1.0 - r2).sqrt())).normalize();
-			return obj.emission + f * radiance(&Ray::new(x, d), depth);
+			return obj.emission + f.mul_element_wise(radiance(&Ray::new(x, d), depth));
 		}
 		Material::Specular => {
-			return obj.emission + f * radiance(&Ray::new(x, ray.direct - n.scale(2.0 * n.dot(&ray.direct)),
-			), depth);
+			return obj.emission + f
+				.mul_element_wise(radiance(&Ray::new(x, ray.direct - n.scale(2.0 * n.dot(ray.direct))), depth))
+			;
 		}
 		Material::Refract => {
-			let reflRay = Ray::new(x, ray.direct - n.scale(2_f64 * n.dot(&ray.direct)));
-			let into = n.dot(&nl) > 0_f64;
+			let reflRay = Ray::new(x, ray.direct - n.scale(2_f64 * n.dot(ray.direct)));
+			let into = n.dot(nl) > 0_f64;
 			let nc = 1_f64;
 			let nt = 1.5_f64;
 			let nnt = if into { nc / nt } else { nt / nc };
-			let ddn = ray.direct.dot(&nl);
+			let ddn = ray.direct.dot(nl);
 			let cos2t = 1_f64 - nnt * nnt * (1_f64 - ddn - ddn);
 			if cos2t < 0_f64 {
-				return obj.emission + f * radiance(&reflRay, depth);
+				return obj.emission + f.mul_element_wise(radiance(&reflRay, depth));
 			}
 			let tdir = (ray.direct.scale(nnt) - n.scale((if into { 1.0 } else { -1.0 }) * (ddn * nnt + cos2t.sqrt()))).normalize();
 			let a = nt - nc;
 			let b = nt + nc;
 			let R0 = a * a / (b * b);
-			let c = 1.0 - (if into { -ddn } else { tdir.dot(&n) });
+			let c = 1.0 - (if into { -ddn } else { tdir.dot(n) });
 			let Re = R0 + (1.0 - R0) * c * c * c * c * c;
 			let Tr = 1.0 - Re;
 			let P = 0.25 + 0.5 * Re;
 			let RP = Re / P;
 			let TP = Tr / (1.0 - p);
-			return obj.emission + f * (if depth > 2 {
+			return obj.emission + f.mul_element_wise((if depth > 2 {
 				if erand48() < P {
 					radiance(&reflRay, depth).scale(RP)
 				} else {
 					radiance(&Ray::new(x, tdir), depth).scale(TP)
 				}
 			} else {
-				radiance(&reflRay, depth).scale(Re) + radiance(&Ray::new(x, tdir), depth).scale(Tr)
-			});
+				radiance(&reflRay, depth).scale(Re) + (radiance(&Ray::new(x, tdir), depth).scale(Tr))
+			}));
 		}
 	}
 }
@@ -242,17 +251,17 @@ fn toInt(x: f64) -> i32 { return (clamp(x).powf(1.0 / 2.2) * 255.0 + 0.5) as i32
 fn main() {
 	let t1 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
 	let text = "Hello, World!";
-	let width = 25;
-	let height = 25;
+	let width = 256;
+	let height = 256;
 	let samples = 25;
 
 	let camera = Ray::new(
 		Vector3::<f64>::new(50.0, 52.0, 295.6),
 		Vector3::<f64>::new(0.0, -0.042612, -1.0).normalize(),
 	);
-	let mut c: Vec<Vector3::< f64 >> = vec![Vector3::<f64>::default(); width * height];
+	let mut c: Vec<Vector3<f64>> = vec![Vector3::<f64>::default(); width * height];
 	let cx = Vector3::<f64>::new(width as f64 * 0.5135 / height as f64, 0.0, 0.0);
-	let cy = (cx % camera.direct).normalize().scale(0.5135);
+	let cy = (cx.rem2(camera.direct)).normalize().scale(0.5135);
 
 	for y in 0..height {
 		for x in 0..width {
